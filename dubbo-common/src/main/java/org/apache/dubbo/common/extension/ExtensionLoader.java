@@ -613,6 +613,8 @@ public class ExtensionLoader<T> {
 
             // 实例注入，对这个实例中含有set方法的成员属性实现依赖注入
             injectExtension(instance);
+
+            //XXX 如果不为空, 对WrapperClass进行包装
             Set<Class<?>> wrapperClasses = cachedWrapperClasses;
             if (CollectionUtils.isNotEmpty(wrapperClasses)) {
                 for (Class<?> wrapperClass : wrapperClasses) {
@@ -733,7 +735,7 @@ public class ExtensionLoader<T> {
             synchronized (cachedClasses) {
                 classes = cachedClasses.get();
                 if (classes == null) {
-                    // 加载扩展文件内容
+                    // 加载扩展文件内容中的class
                     classes = loadExtensionClasses();
                     cachedClasses.set(classes);
                 }
@@ -865,7 +867,10 @@ public class ExtensionLoader<T> {
         // 缓存类级别的Adaptive Class
         if (clazz.isAnnotationPresent(Adaptive.class)) {
             cacheAdaptiveClass(clazz);
-        } else if (isWrapperClass(clazz)) {
+        }
+        // 如果当前这个类是一个 wrapper 包装类，也就是这个wrapper中有构造方法，
+        // 参数是当前被加载的扩展点的类型，则把这个wrapper类加入到cacheWrapperClass缓存中。
+        else if (isWrapperClass(clazz)) {
             cacheWrapperClass(clazz);
         } else {
             clazz.getConstructor();
@@ -1001,8 +1006,8 @@ public class ExtensionLoader<T> {
             return cachedAdaptiveClass;
         }
 
-        // 如果 cachedAdaptiveClass 不存在，dubbo 会动态生成一个代理类 Protocol$Adaptive.
-        // 前面的名字 protocol 是根据当前ExtensionLoader 所加载的扩展点来定义的
+        // 如果cachedAdaptiveClass不存在，dubbo会动态生成一个代理类Protocol$Adaptive.
+        // 前面的名字protocol是根据当前ExtensionLoader所加载的扩展点来定义的
         return cachedAdaptiveClass = createAdaptiveExtensionClass();
     }
 

@@ -282,7 +282,11 @@ public class DubboProtocol extends AbstractProtocol {
         URL url = invoker.getUrl();
 
         // export service.
+        //获取服务标识，理解成服务坐标也行。由服务组名，服务版本号以及端口组成。比如
+        //${group}/copm.gupaoedu.practice.dubbo.ISayHelloService:${version}:20880
         String key = serviceKey(url);
+
+        // 创建 DubboExporter
         DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
         exporterMap.put(key, exporter);
 
@@ -296,13 +300,15 @@ public class DubboProtocol extends AbstractProtocol {
                     logger.warn(new IllegalStateException("consumer [" + url.getParameter(INTERFACE_KEY) +
                             "], has set stubproxy support event ,but no stub methods founded."));
                 }
-
             } else {
                 stubServiceMethodsMap.put(url.getServiceKey(), stubServiceMethods);
             }
         }
 
+        //XXX 启动服务
         openServer(url);
+
+        //XXX 优化序列化
         optimizeSerialization(url);
 
         return exporter;
@@ -310,6 +316,7 @@ public class DubboProtocol extends AbstractProtocol {
 
     private void openServer(URL url) {
         // find server.
+        // 服务监听的ip和port: localhost:20880
         String key = url.getAddress();
         //client can export a service which's only for server to invoke
         boolean isServer = url.getParameter(IS_SERVER_KEY, true);
@@ -319,30 +326,39 @@ public class DubboProtocol extends AbstractProtocol {
                 synchronized (this) {
                     server = serverMap.get(key);
                     if (server == null) {
+                        //XXX 创建服务器实例
                         serverMap.put(key, createServer(url));
                     }
                 }
             } else {
                 // server supports reset, use together with override
+                // -> DubboProtocolServer.reset -> AbstractServer.reset
+                // 根据URL中的参数, 修改一些线程池的属性，例如coreSize、maxSize
                 server.reset(url);
             }
         }
     }
 
     private ProtocolServer createServer(URL url) {
+        // 组装 url，在 url 中添加心跳时间、编解码参数
         url = URLBuilder.from(url)
                 // send readonly event when server closes, it's enabled by default
+                // 当服务关闭以后，发送一个只读的事件，默认是开启状态
                 .addParameterIfAbsent(CHANNEL_READONLYEVENT_SENT_KEY, Boolean.TRUE.toString())
                 // enable heartbeat by default
+                // 启动心跳配置
                 .addParameterIfAbsent(HEARTBEAT_KEY, String.valueOf(DEFAULT_HEARTBEAT))
+                // 编码协议
                 .addParameter(CODEC_KEY, DubboCodec.NAME)
                 .build();
-        String str = url.getParameter(SERVER_KEY, DEFAULT_REMOTING_SERVER);
 
+        // 通过 SPI 检测是否存在 server 参数所代表的 Transporter 拓展，不存在则抛出异常[默认为netty作为服务器]
+        String str = url.getParameter(SERVER_KEY, DEFAULT_REMOTING_SERVER);
         if (str != null && str.length() > 0 && !ExtensionLoader.getExtensionLoader(Transporter.class).hasExtension(str)) {
             throw new RpcException("Unsupported server type: " + str + ", url: " + url);
         }
 
+        //XXX 创建ExchangeServer.
         ExchangeServer server;
         try {
             server = Exchangers.bind(url, requestHandler);

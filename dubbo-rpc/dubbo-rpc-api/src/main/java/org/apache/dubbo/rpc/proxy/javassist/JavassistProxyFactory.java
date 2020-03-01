@@ -26,6 +26,7 @@ import org.apache.dubbo.rpc.proxy.InvokerInvocationHandler;
 
 /**
  * JavaassistRpcProxyFactory
+ * javassist 是一个动态类库，用来实现动态代理的。
  */
 public class JavassistProxyFactory extends AbstractProxyFactory {
 
@@ -35,9 +36,16 @@ public class JavassistProxyFactory extends AbstractProxyFactory {
         return (T) Proxy.getProxy(interfaces).newInstance(new InvokerInvocationHandler(invoker));
     }
 
+    /**
+     *
+     * @param proxy  接口实现类
+     * @param type   接口类
+     * @param url
+     */
     @Override
     public <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) {
-        // TODO Wrapper cannot handle this scenario correctly: the classname contains '$'
+        // TODO Wrapper cannot handle this scenario correctly: the classname contains '$'  包装器无法正确处理此方案：类名中包含“$”的类
+        // 将实现类进行包装处理并生成包装类
         final Wrapper wrapper = Wrapper.getWrapper(proxy.getClass().getName().indexOf('$') < 0 ? proxy.getClass() : type);
         return new AbstractProxyInvoker<T>(proxy, type, url) {
             @Override

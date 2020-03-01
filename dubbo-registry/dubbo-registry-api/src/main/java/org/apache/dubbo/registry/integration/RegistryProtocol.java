@@ -153,6 +153,7 @@ public class RegistryProtocol implements Protocol {
         this.protocol = protocol;
     }
 
+    // 通过SPI依赖注入来实现的扩展点
     public void setRegistryFactory(RegistryFactory registryFactory) {
         this.registryFactory = registryFactory;
     }
@@ -172,6 +173,7 @@ public class RegistryProtocol implements Protocol {
 
     public void register(URL registryUrl, URL registeredProviderUrl) {
         Registry registry = registryFactory.getRegistry(registryUrl);
+        // FailbackRegistry.register(org.apache.dubbo.common.URL)
         registry.register(registeredProviderUrl);
 
         ProviderModel model = ApplicationModel.getProviderModel(registeredProviderUrl.getServiceKey());
@@ -182,39 +184,60 @@ public class RegistryProtocol implements Protocol {
         ));
     }
 
+    /**
+     * 1, 实现对应协议的服务发布
+     * 2, 实现服务注册
+     * 3, 订阅服务重写
+     */
     @Override
     public <T> Exporter<T> export(final Invoker<T> originInvoker) throws RpcException {
+        // 这里获得的是 zookeeper 注册中心的 url: zookeeper://ip:port
         URL registryUrl = getRegistryUrl(originInvoker);
         // url to export locally
+        // 这里是获得服务提供者的 url, dubbo://ip:port...
         URL providerUrl = getProviderUrl(originInvoker);
 
+        // 订阅 override 数据。在 admin 控制台可以针对服务进行治理，比如修改权重，修改路由机制等，
+        // 当注册中心有此服务的覆盖配置注册进来时，推送消息给提供者，重新暴露服务
         // Subscribe the override data
         // FIXME When the provider subscribes, it will affect the scene : a certain JVM exposes the service and call
         //  the same service. Because the subscribed is cached key with the name of the service, it causes the
         //  subscription information to cover.
+        // provider://192.168.1.3:20880
         final URL overrideSubscribeUrl = getSubscribedOverrideUrl(providerUrl);
         final OverrideListener overrideSubscribeListener = new OverrideListener(overrideSubscribeUrl, originInvoker);
         overrideListeners.put(overrideSubscribeUrl, overrideSubscribeListener);
 
+        // 根据配置中心的数据重写服务提供者的URL
         providerUrl = overrideUrlWithConfig(providerUrl, overrideSubscribeListener);
+
         //export invoker
+        //XXX[启动服务] 交给了具体的协议去暴露服务, 本质上应该是启动一个通信服务,主要的步骤是将本地ip和20880端口打开，进行监听
         final ExporterChangeableWrapper<T> exporter = doLocalExport(originInvoker, providerUrl);
 
         // url to registry
+        // 根据invoker中的url获取Registry实例: zookeeperRegistry
         final Registry registry = getRegistry(originInvoker);
+
+        // 获取要注册到注册中心的URL: dubbo://ip:port
         final URL registeredProviderUrl = getUrlToRegistry(providerUrl, registryUrl);
+
         // decide if we need to delay publish
+        //XXX[注册中心] 是否配置了注册中心，如果是则需要将服务URL注册到注册中心上[zookeeper,nacos,redis...]
         boolean register = providerUrl.getParameter(REGISTER_KEY, true);
         if (register) {
+            // 注册服务的URL到注册中心
             register(registryUrl, registeredProviderUrl);
         }
 
+        // 设置注册中心的订阅
         // Deprecated! Subscribe to override rules in 2.6.x or before.
         registry.subscribe(overrideSubscribeUrl, overrideSubscribeListener);
 
         exporter.setRegisterUrl(registeredProviderUrl);
         exporter.setSubscribeUrl(overrideSubscribeUrl);
         //Ensure that a new exporter instance is returned every time export
+        // 保证每次 export 都返回一个新的 exporter 实例
         return new DestroyableExporter<>(exporter);
     }
 
@@ -225,12 +248,27 @@ public class RegistryProtocol implements Protocol {
         return serviceConfigurationListener.overrideUrl(providerUrl);
     }
 
+    /**
+     * 先通过 doLocalExport 来暴露一个服务，本质上应该是启动一个通信服务,主要的步骤是将本地 ip 和 20880 端口打开，进行监听
+     * originInvoker: 应该是 registry://ip:port/com.alibaba.dubbo.registry.RegistryService
+     * key: 从 originInvoker 中获得发布协议的 url: dubbo://ip:port/...
+     * bounds: 一个providerUrl服务export之后，缓存到bounds中，所以一个providerUrl只会对应一个exporter
+     */
     @SuppressWarnings("unchecked")
     private <T> ExporterChangeableWrapper<T> doLocalExport(final Invoker<T> originInvoker, URL providerUrl) {
+        // 发布协议的 url: dubbo://ip:port/...
         String key = getCacheKey(originInvoker);
 
         return (ExporterChangeableWrapper<T>) bounds.computeIfAbsent(key, s -> {
+            // 对原有的 invoker,委托给了 InvokerDelegate
+            // InvokerDelegete: 是 RegistryProtocol 的一个静态内部类，该类是一个 originInvoker 的委托类，该类存储了 originInvoker，其
+            // 父类InvokerWrapper还会存储providerUrl，InvokerWrapper会调用originInvoker的invoke方法[也会销毁 invoker???]。可以
+            // 管理invoker 的生命周期
             Invoker<?> invokerDelegate = new InvokerDelegate<>(originInvoker, providerUrl);
+
+            //XXX 将 invoker 转换为 exporter 并启动 netty 服务->[DubboProtocol.export()]
+            //protocol会经过层层装饰: 此时protocol=Protocol$Adaptive -> QosProtocolWrapper/ProtocolFilterWrapper/ProtocolListenerWrapper/DubboProtocol
+            //--> 这里的装饰顺序是随机的
             return new ExporterChangeableWrapper<>((Exporter<T>) protocol.export(invokerDelegate), originInvoker);
         });
     }
@@ -294,16 +332,23 @@ public class RegistryProtocol implements Protocol {
      * @return
      */
     protected Registry getRegistry(final Invoker<?> originInvoker) {
+        // 把url转化为对应配置的注册中心的具体协议
+        // 把url转化为配置的具体协议，比如zookeeper://ip:port.这样后续获得的注册中心就会是基于zk的实现
+        //eg: zookeeper://127.0.0.1:2181/org.apache.dubbo.registry.RegistryService
         URL registryUrl = getRegistryUrl(originInvoker);
+        // 根据具体协议，从 registryFactory 中获得指定的注册中心实现
         return registryFactory.getRegistry(registryUrl);
     }
 
     protected URL getRegistryUrl(Invoker<?> originInvoker) {
         URL registryUrl = originInvoker.getUrl();
         if (REGISTRY_PROTOCOL.equals(registryUrl.getProtocol())) {
+            // 获取配置的注册中心[zookeeper, redis, nacos...]
             String protocol = registryUrl.getParameter(REGISTRY_KEY, DEFAULT_REGISTRY);
+            // 替换URL协议, 为注册中心的协议, 并移除URL参数中的registry参数
             registryUrl = registryUrl.setProtocol(protocol).removeParameter(REGISTRY_KEY);
         }
+
         return registryUrl;
     }
 
@@ -338,8 +383,8 @@ public class RegistryProtocol implements Protocol {
                 }
                 extraKeys += INTERFACE_KEY;
             }
-            String[] paramsToRegistry = getParamsToRegistry(DEFAULT_REGISTER_PROVIDER_KEYS
-                    , COMMA_SPLIT_PATTERN.split(extraKeys));
+
+            String[] paramsToRegistry = getParamsToRegistry(DEFAULT_REGISTER_PROVIDER_KEYS, COMMA_SPLIT_PATTERN.split(extraKeys));
             return URL.valueOf(providerUrl, paramsToRegistry, providerUrl.getParameter(METHODS_KEY, (String[]) null));
         }
 

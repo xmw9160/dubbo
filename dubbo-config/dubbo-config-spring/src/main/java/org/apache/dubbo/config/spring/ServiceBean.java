@@ -37,8 +37,18 @@ import org.springframework.context.ApplicationEventPublisherAware;
  *
  * @export
  */
-public class ServiceBean<T> extends ServiceConfig<T> implements InitializingBean, DisposableBean,
-        ApplicationContextAware, BeanNameAware,
+public class ServiceBean<T> extends ServiceConfig<T> implements
+        // 接口为 bean 提供了初始化方法的方式，它只包括 afterPropertiesSet 方法，
+        // 凡是继承该接口的类，在初始化 bean 的时候会执行该方法。被重写的方法为 afterPropertiesSet
+        InitializingBean,
+        // 被重写的方法为destroy, bean被销毁的时候，spring容器会自动执行destroy方法，比如释放资源
+        DisposableBean,
+        // 实现了这个接口的 bean，当spring容器初始化的时候，会自动的将ApplicationContext注入进来
+        ApplicationContextAware,
+        // 获得自身初始化时，本身的bean的id属性，被重写的方法为setBeanName
+        BeanNameAware,
+        // 这个是一个异步事件发送器。被重写的方法为 setApplicationEventPublisher, 简单来说，在spring里面提供了类似于消息队列
+        // 的异步事件解耦功能。（典型的观察者模式的应用）
         ApplicationEventPublisherAware {
 
 

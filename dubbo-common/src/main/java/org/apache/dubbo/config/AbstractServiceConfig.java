@@ -89,8 +89,10 @@ public abstract class AbstractServiceConfig extends AbstractInterfaceConfig {
 
     /**
      * The protocol list the service will export with
+     * 服务需要暴露的服务协议信息,dubbo, webservice,rest...
      */
     protected List<ProtocolConfig> protocols;
+
     protected String protocolIds;
 
     // max allowed execute times

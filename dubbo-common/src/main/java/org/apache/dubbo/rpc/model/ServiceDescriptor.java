@@ -56,9 +56,6 @@ public class ServiceDescriptor {
         methods.forEach((methodName, methodList) -> {
             Map<String, MethodDescriptor> descMap = descToMethods.computeIfAbsent(methodName, k -> new HashMap<>());
             methodList.forEach(methodModel -> descMap.put(methodModel.getParamDesc(), methodModel));
-
-//            Map<Class<?>[], MethodModel> typesMap = typeToMethods.computeIfAbsent(methodName, k -> new HashMap<>());
-//            methodList.forEach(methodModel -> typesMap.put(methodModel.getParameterClasses(), methodModel));
         });
     }
 

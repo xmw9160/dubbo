@@ -45,8 +45,7 @@ public class ServiceRepository extends LifecycleAdapter implements FrameworkExt 
     private ConcurrentMap<String, ProviderModel> providers = new ConcurrentHashMap<>();
 
     public ServiceRepository() {
-        Set<BuiltinServiceDetector> builtinServices
-                = ExtensionLoader.getExtensionLoader(BuiltinServiceDetector.class).getSupportedExtensionInstances();
+        Set<BuiltinServiceDetector> builtinServices = ExtensionLoader.getExtensionLoader(BuiltinServiceDetector.class).getSupportedExtensionInstances();
         if (CollectionUtils.isNotEmpty(builtinServices)) {
             for (BuiltinServiceDetector service : builtinServices) {
                 registerService(service.getService());
@@ -55,8 +54,7 @@ public class ServiceRepository extends LifecycleAdapter implements FrameworkExt 
     }
 
     public ServiceDescriptor registerService(Class<?> interfaceClazz) {
-        return services.computeIfAbsent(interfaceClazz.getName(),
-                _k -> new ServiceDescriptor(interfaceClazz));
+        return services.computeIfAbsent(interfaceClazz.getName(), _k -> new ServiceDescriptor(interfaceClazz));
     }
 
     /**
@@ -77,6 +75,7 @@ public class ServiceRepository extends LifecycleAdapter implements FrameworkExt 
         if (!interfaceClass.getName().equals(path)) {
             services.putIfAbsent(path, serviceDescriptor);
         }
+
         return serviceDescriptor;
     }
 

@@ -116,6 +116,7 @@ public abstract class AbstractInterfaceConfig extends AbstractMethodConfig {
 
     /**
      * Registry centers
+     * 注册中心配置
      */
     protected List<RegistryConfig> registries;
 

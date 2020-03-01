@@ -27,6 +27,7 @@ import org.apache.dubbo.remoting.zookeeper.ZookeeperTransporter;
  */
 public class ZookeeperRegistryFactory extends AbstractRegistryFactory {
 
+    // 默认使用apache curator作为zk客户端
     private ZookeeperTransporter zookeeperTransporter;
 
     /**

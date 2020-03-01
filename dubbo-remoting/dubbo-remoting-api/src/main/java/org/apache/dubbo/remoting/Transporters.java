@@ -51,8 +51,11 @@ public class Transporters {
         if (handlers.length == 1) {
             handler = handlers[0];
         } else {
+            // 如果 handlers 元素数量大于 1，则创建 ChannelHandler 分发器
             handler = new ChannelHandlerDispatcher(handlers);
         }
+
+        // 获取自适应 Transporter 实例，并调用实例方法
         return getTransporter().bind(url, handler);
     }
 
@@ -64,6 +67,7 @@ public class Transporters {
         if (url == null) {
             throw new IllegalArgumentException("url == null");
         }
+
         ChannelHandler handler;
         if (handlers == null || handlers.length == 0) {
             handler = new ChannelHandlerAdapter();
@@ -72,10 +76,12 @@ public class Transporters {
         } else {
             handler = new ChannelHandlerDispatcher(handlers);
         }
+
         return getTransporter().connect(url, handler);
     }
 
     public static Transporter getTransporter() {
+        // 默认为org.apache.dubbo.remoting.transport.netty4.NettyTransporter
         return ExtensionLoader.getExtensionLoader(Transporter.class).getAdaptiveExtension();
     }
 

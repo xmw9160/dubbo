@@ -37,6 +37,7 @@ import static org.apache.dubbo.common.constants.CommonConstants.INVOKER_LISTENER
 
 /**
  * ListenerProtocol
+ * 用于服务 export 时候插入监听机制
  */
 public class ProtocolListenerWrapper implements Protocol {
 
