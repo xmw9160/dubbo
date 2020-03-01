@@ -30,9 +30,18 @@ import org.apache.dubbo.rpc.proxy.InvokerInvocationHandler;
  */
 public class JavassistProxyFactory extends AbstractProxyFactory {
 
+    /**
+     * 通过这个方法生成了一个动态代理类，并且对invoker再做了一层处理，InvokerInvocationHandler。
+     * 意味着后续发起服务调用的时候，会由InvokerInvocationHandler来进行处理。
+     * @param invoker
+     * @param interfaces
+     * @param <T>
+     * @return
+     */
     @Override
     @SuppressWarnings("unchecked")
     public <T> T getProxy(Invoker<T> invoker, Class<?>[] interfaces) {
+        // Proxy非JDK的Proxy
         return (T) Proxy.getProxy(interfaces).newInstance(new InvokerInvocationHandler(invoker));
     }
 
@@ -40,7 +49,7 @@ public class JavassistProxyFactory extends AbstractProxyFactory {
      *
      * @param proxy  接口实现类
      * @param type   接口类
-     * @param url
+     * @param url    registry[injvm]://127.0.0.1:2181/org.apache.dubbo.registry.RegistryService
      */
     @Override
     public <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) {

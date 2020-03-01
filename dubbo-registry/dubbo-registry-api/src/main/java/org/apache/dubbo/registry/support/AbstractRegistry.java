@@ -27,6 +27,7 @@ import org.apache.dubbo.common.utils.StringUtils;
 import org.apache.dubbo.common.utils.UrlUtils;
 import org.apache.dubbo.registry.NotifyListener;
 import org.apache.dubbo.registry.Registry;
+import org.apache.dubbo.registry.integration.RegistryDirectory;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -309,6 +310,7 @@ public abstract class AbstractRegistry implements Registry {
         if (logger.isInfoEnabled()) {
             logger.info("Subscribe: " + url);
         }
+        //TODO 一个URL多个监听???
         Set<NotifyListener> listeners = subscribed.computeIfAbsent(url, n -> new ConcurrentHashSet<>());
         listeners.add(listener);
     }
@@ -383,6 +385,7 @@ public abstract class AbstractRegistry implements Registry {
 
     /**
      * Notify changes from the Provider side.
+     * 针对每一个category，调用listener.notify进行通知，然后更新本地的缓存文件
      *
      * @param url      consumer side url
      * @param listener listener
@@ -392,17 +395,20 @@ public abstract class AbstractRegistry implements Registry {
         if (url == null) {
             throw new IllegalArgumentException("notify url == null");
         }
+
         if (listener == null) {
             throw new IllegalArgumentException("notify listener == null");
         }
-        if ((CollectionUtils.isEmpty(urls))
-                && !ANY_VALUE.equals(url.getServiceInterface())) {
+
+        if ((CollectionUtils.isEmpty(urls)) && !ANY_VALUE.equals(url.getServiceInterface())) {
             logger.warn("Ignore empty notify urls for subscribe url " + url);
             return;
         }
+
         if (logger.isInfoEnabled()) {
             logger.info("Notify urls for subscribe url " + url + ", urls: " + urls);
         }
+
         // keep every provider's category.
         Map<String, List<URL>> result = new HashMap<>();
         for (URL u : urls) {
@@ -412,16 +418,21 @@ public abstract class AbstractRegistry implements Registry {
                 categoryList.add(u);
             }
         }
+
         if (result.size() == 0) {
             return;
         }
+
         Map<String, List<URL>> categoryNotified = notified.computeIfAbsent(url, u -> new ConcurrentHashMap<>());
         for (Map.Entry<String, List<URL>> entry : result.entrySet()) {
             String category = entry.getKey();
             List<URL> categoryList = entry.getValue();
             categoryNotified.put(category, categoryList);
+            // 进行通知 RegistryDirectory.notify()
             listener.notify(categoryList);
+            // 我们将在每次通知后更新缓存文件。
             // We will update our cache file after each notification.
+            // 当注册表由于网络抖动而发生订阅失败时，我们至少可以返回现有的缓存URL。
             // When our Registry has a subscribe failure due to network jitter, we can return at least the existing cache URL.
             saveProperties(url);
         }

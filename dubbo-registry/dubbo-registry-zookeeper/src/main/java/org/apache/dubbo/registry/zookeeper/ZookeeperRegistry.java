@@ -181,25 +181,34 @@ public class ZookeeperRegistry extends FailbackRegistry {
                                 Constants.CHECK_KEY, String.valueOf(false)), listener);
                     }
                 }
-            } else {
+            }
+            else {
                 List<URL> urls = new ArrayList<>();
                 for (String path : toCategoriesPath(url)) {
                     ConcurrentMap<NotifyListener, ChildListener> listeners = zkListeners.get(url);
+                    // 如果之前该路径没有添加过listener，则创建一个map来放置listener
                     if (listeners == null) {
                         zkListeners.putIfAbsent(url, new ConcurrentHashMap<>());
                         listeners = zkListeners.get(url);
                     }
                     ChildListener zkListener = listeners.get(listener);
                     if (zkListener == null) {
-                        listeners.putIfAbsent(listener, (parentPath, currentChilds) -> ZookeeperRegistry.this.notify(url, listener, toUrlsWithEmpty(url, parentPath, currentChilds)));
+                        // 如果没有添加过对于子节点的listener，则创建, 通知服务变化, 回调NotifyListener
+                        listeners.putIfAbsent(listener,
+                                (parentPath, currentChilds) -> ZookeeperRegistry.this.notify(url, listener, toUrlsWithEmpty(url, parentPath, currentChilds)));
+
                         zkListener = listeners.get(listener);
                     }
                     zkClient.create(path, false);
+                    // 添加path节点的当前节点及子节点监听，并且获取子节点信息
+                    // 也就是dubbo://ip:port/...
                     List<String> children = zkClient.addChildListener(path, zkListener);
                     if (children != null) {
                         urls.addAll(toUrlsWithEmpty(url, path, children));
                     }
                 }
+
+                //XX 调用notify进行通知，对已经可用的列表进行通知
                 notify(url, listener, urls);
             }
         } catch (Throwable e) {

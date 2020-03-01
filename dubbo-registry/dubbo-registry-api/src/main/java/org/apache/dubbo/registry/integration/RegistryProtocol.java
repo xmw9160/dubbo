@@ -145,6 +145,7 @@ public class RegistryProtocol implements Protocol {
         }
     }
 
+    // Cluster$Adaptive -> MockClusterWrapper（FailOverCluster）
     public void setCluster(Cluster cluster) {
         this.cluster = cluster;
     }
@@ -417,20 +418,23 @@ public class RegistryProtocol implements Protocol {
      */
     private String getCacheKey(final Invoker<?> originInvoker) {
         URL providerUrl = getProviderUrl(originInvoker);
-        String key = providerUrl.removeParameters("dynamic", "enabled").toFullString();
-        return key;
+        return providerUrl.removeParameters("dynamic", "enabled").toFullString();
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException {
+        // 根据配置的协议，生成注册中心的url: zookeeper://
         url = getRegistryUrl(url);
+
+        // 注册中心实例判断
         Registry registry = registryFactory.getRegistry(url);
         if (RegistryService.class.equals(type)) {
             return proxyFactory.getInvoker((T) registry, type, url);
         }
 
         // group="a,b" or group="*"
+        // 解析group参数，根据group决定cluster的类型
         Map<String, String> qs = StringUtils.parseQueryString(url.getParameterAndDecoded(REFER_KEY));
         String group = qs.get(GROUP_KEY);
         if (group != null && group.length() > 0) {
@@ -438,6 +442,8 @@ public class RegistryProtocol implements Protocol {
                 return doRefer(getMergeableCluster(), registry, type, url);
             }
         }
+
+        //XXX 真正构建Invoker对象
         return doRefer(cluster, registry, type, url);
     }
 
@@ -445,23 +451,43 @@ public class RegistryProtocol implements Protocol {
         return ExtensionLoader.getExtensionLoader(Cluster.class).getExtension("mergeable");
     }
 
+    /**
+     * 1. 构建一个RegistryDirectory
+     * 2. 构建一个consumer://协议的地址注册到注册中心
+     * 3. 订阅zookeeper中节点的变化
+     * 4. 调用cluster.join方法
+     *
+     * @param cluster
+     * @param registry
+     * @param type
+     * @param url
+     * @param <T>
+     * @return
+     */
     private <T> Invoker<T> doRefer(Cluster cluster, Registry registry, Class<T> type, URL url) {
-        RegistryDirectory<T> directory = new RegistryDirectory<T>(type, url);
+        // RegistryDirectory初始化
+        RegistryDirectory<T> directory = new RegistryDirectory<>(type, url);
         directory.setRegistry(registry);
         directory.setProtocol(protocol);
+
         // all attributes of REFER_KEY
-        Map<String, String> parameters = new HashMap<String, String>(directory.getUrl().getParameters());
+        Map<String, String> parameters = new HashMap<>(directory.getUrl().getParameters());
+
+        // 注册consumer://协议的url
         URL subscribeUrl = new URL(CONSUMER_PROTOCOL, parameters.remove(REGISTER_IP_KEY), 0, type.getName(), parameters);
         if (!ANY_VALUE.equals(url.getServiceInterface()) && url.getParameter(REGISTER_KEY, true)) {
             directory.setRegisteredConsumerUrl(getRegisteredConsumerUrl(subscribeUrl, url));
+
             registry.register(directory.getRegisteredConsumerUrl());
         }
-        directory.buildRouterChain(subscribeUrl);
-        directory.subscribe(subscribeUrl.addParameter(CATEGORY_KEY,
-                PROVIDERS_CATEGORY + "," + CONFIGURATORS_CATEGORY + "," + ROUTERS_CATEGORY));
 
-        Invoker invoker = cluster.join(directory);
-        return invoker;
+        directory.buildRouterChain(subscribeUrl);
+        //XXX 订阅事件监听, 实现服务目标服务订阅的
+        directory.subscribe(subscribeUrl.addParameter(CATEGORY_KEY, PROVIDERS_CATEGORY + "," + CONFIGURATORS_CATEGORY + "," + ROUTERS_CATEGORY));
+
+        //XXX 构建invoker
+        //Cluster$Adaptive -> MockClusterWrapper（FailOverCluster）=> MockClusterWrapper.join()
+        return cluster.join(directory);
     }
 
     public URL getRegisteredConsumerUrl(final URL consumerUrl, URL registryUrl) {
@@ -469,8 +495,8 @@ public class RegistryProtocol implements Protocol {
             return consumerUrl.addParameters(CATEGORY_KEY, CONSUMERS_CATEGORY,
                     CHECK_KEY, String.valueOf(false));
         } else {
-            return URL.valueOf(consumerUrl, DEFAULT_REGISTER_CONSUMER_KEYS, null).addParameters(
-                    CATEGORY_KEY, CONSUMERS_CATEGORY, CHECK_KEY, String.valueOf(false));
+            return URL.valueOf(consumerUrl, DEFAULT_REGISTER_CONSUMER_KEYS, null)
+                    .addParameters(CATEGORY_KEY, CONSUMERS_CATEGORY, CHECK_KEY, String.valueOf(false));
         }
     }
 

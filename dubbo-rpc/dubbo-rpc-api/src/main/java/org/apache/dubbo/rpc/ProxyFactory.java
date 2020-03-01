@@ -24,6 +24,7 @@ import static org.apache.dubbo.rpc.Constants.PROXY_KEY;
 
 /**
  * ProxyFactory. (API/SPI, Singleton, ThreadSafe)
+ * 它是一个spi扩展点，并且默认的扩展实现是javassit, 这个接口中有三个方法，并且都是加了@Adaptive的自适应扩展点。
  */
 @SPI("javassist")
 public interface ProxyFactory {

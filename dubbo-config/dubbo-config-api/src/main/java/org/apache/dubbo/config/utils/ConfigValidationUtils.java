@@ -167,7 +167,7 @@ public class ConfigValidationUtils {
 
 
     /**
-     * 加载配置中心地址信息
+     * 获取注册中心的地址信息, 并将注册地址更改为 registry://...?registry={实际注册中心id[zookeeper,nacos,etcd...]}
      *
      * @param interfaceConfig 包含配置中心的配置信息
      * @param provider        是否是服务提供者
@@ -193,14 +193,17 @@ public class ConfigValidationUtils {
                     if (!map.containsKey(PROTOCOL_KEY)) {
                         map.put(PROTOCOL_KEY, DUBBO_PROTOCOL);
                     }
+
                     List<URL> urls = UrlUtils.parseURLs(address, map);
 
                     for (URL url : urls) {
-
+                        // 将URL做一次更改
+                        // 将注册中心地址更改为registry://...registry=zookeeper
                         url = URLBuilder.from(url)
                                 .addParameter(REGISTRY_KEY, url.getProtocol())
                                 .setProtocol(extractRegistryType(url))
                                 .build();
+
                         if ((provider && url.getParameter(REGISTER_KEY, true))
                                 || (!provider && url.getParameter(SUBSCRIBE_KEY, true))) {
                             registryList.add(url);

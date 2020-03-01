@@ -302,6 +302,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
         removeFailedSubscribed(url, listener);
         try {
             // Sending a subscription request to the server side
+            //XXX ZookeeperRegistry.doSubscribe()
             doSubscribe(url, listener);
         } catch (Exception e) {
             Throwable t = e;
@@ -367,6 +368,7 @@ public abstract class FailbackRegistry extends AbstractRegistry {
             throw new IllegalArgumentException("notify listener == null");
         }
         try {
+            // AbstractRegistry.notify()
             doNotify(url, listener, urls);
         } catch (Exception t) {
             // Record a failed registration request to a failed list, retry regularly
