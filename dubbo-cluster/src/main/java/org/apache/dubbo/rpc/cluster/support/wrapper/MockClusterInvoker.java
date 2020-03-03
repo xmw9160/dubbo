@@ -68,15 +68,26 @@ public class MockClusterInvoker<T> implements Invoker<T> {
         return directory.getInterface();
     }
 
+    /**
+     * Mock，在这里面有两个逻辑
+     * 1. 是否客户端强制配置了mock调用，那么在这种场景中主要可以用来解决服务端还没开发好的时候 直接使用本地数据进行测试
+     * 2. 是否出现了异常，如果出现异常则使用配置好的Mock类来实现服务的降级
+     */
     @Override
     public Result invoke(Invocation invocation) throws RpcException {
         Result result = null;
 
+        // 从url中获得MOCK_KEY对应的value
         String value = directory.getUrl().getMethodParameter(invocation.getMethodName(), MOCK_KEY, Boolean.FALSE.toString()).trim();
+
+        // 如果没有配置mock，则直接传递给下个invoker调用
         if (value.length() == 0 || "false".equalsIgnoreCase(value)) {
             //no mock
             result = this.invoker.invoke(invocation);
-        } else if (value.startsWith("force")) {
+        }
+
+        // 如果强制为本地调用，则执行 mockInvoke
+        else if (value.startsWith("force")) {
             if (logger.isWarnEnabled()) {
                 logger.warn("force-mock: " + invocation.getMethodName() + " force-mock enabled , url : " + directory.getUrl());
             }
@@ -93,6 +104,7 @@ public class MockClusterInvoker<T> implements Invoker<T> {
                     if(rpcException.isBiz()){
                         throw  rpcException;
                     }else {
+                        // 如果远程调用出现异常，则使用Mock进行处理
                         result = doMockInvoke(invocation, rpcException);
                     }
                 }

@@ -159,16 +159,19 @@ final class NettyChannel extends AbstractChannel {
         boolean success = true;
         int timeout = 0;
         try {
+            // 通过NioSocketChannel把消息发送出去
             ChannelFuture future = channel.writeAndFlush(message);
             if (sent) {
                 // wait timeout ms
                 timeout = getUrl().getPositiveParameter(TIMEOUT_KEY, DEFAULT_TIMEOUT);
                 success = future.await(timeout);
             }
+
             Throwable cause = future.cause();
             if (cause != null) {
                 throw cause;
             }
+
         } catch (Throwable e) {
             removeChannelIfDisconnected(channel);
             throw new RemotingException(this, "Failed to send message " + PayloadDropper.getRequestWithoutData(message) + " to " + getRemoteAddress() + ", cause: " + e.getMessage(), e);

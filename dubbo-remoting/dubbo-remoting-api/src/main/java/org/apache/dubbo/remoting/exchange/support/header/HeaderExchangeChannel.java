@@ -126,12 +126,15 @@ final class HeaderExchangeChannel implements ExchangeChannel {
             throw new RemotingException(this.getLocalAddress(), null, "Failed to send request " + request + ", cause: The channel " + this + " is closed!");
         }
         // create request.
+        // 创建请求对象
         Request req = new Request();
         req.setVersion(Version.getProtocolVersion());
         req.setTwoWay(true);
         req.setData(request);
         DefaultFuture future = DefaultFuture.newFuture(channel, req, timeout, executor);
         try {
+            // NettyClient
+            // AbstractPeer.send -> AbstractClient.send-> NettyChannel.send
             channel.send(req);
         } catch (RemotingException e) {
             future.cancel();

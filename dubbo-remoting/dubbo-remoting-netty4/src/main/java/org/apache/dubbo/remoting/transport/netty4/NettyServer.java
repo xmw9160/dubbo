@@ -117,7 +117,11 @@ public class NettyServer extends AbstractServer implements RemotingServer {
                         ch.pipeline()
                                 .addLast("decoder", adapter.getDecoder())
                                 .addLast("encoder", adapter.getEncoder())
+                                // 心跳处理的机制
                                 .addLast("server-idle-handler", new IdleStateHandler(0, 0, idleTimeout, MILLISECONDS))
+                                // 接收接口请求
+                                // Handler与Servlet中的filter很像，通过Handler可以
+                                // 完成通讯报文的解码编码、拦截指定的报文、统一 对日志错误进行处理、统一对请求进行计数、控制Handler执行与否
                                 .addLast("handler", nettyServerHandler);
                     }
                 });

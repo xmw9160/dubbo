@@ -54,6 +54,8 @@ public class InvokerInvocationHandler implements InvocationHandler {
         } else if (parameterTypes.length == 1 && "equals".equals(methodName)) {
             return invoker.equals(args[0]);
         }
+
+        //createInvocation 参数为目标方法名称和目标方法的参数，看起来似乎是组装一个传输的对象
         RpcInvocation rpcInvocation = new RpcInvocation(method, invoker.getInterface().getName(), args);
         rpcInvocation.setTargetServiceUniqueName(invoker.getUrl().getServiceKey());
 

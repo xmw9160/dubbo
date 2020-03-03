@@ -132,8 +132,7 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         }
         String methodName = invocation == null ? StringUtils.EMPTY_STRING : invocation.getMethodName();
 
-        boolean sticky = invokers.get(0).getUrl()
-                .getMethodParameter(methodName, CLUSTER_STICKY_KEY, DEFAULT_CLUSTER_STICKY);
+        boolean sticky = invokers.get(0).getUrl().getMethodParameter(methodName, CLUSTER_STICKY_KEY, DEFAULT_CLUSTER_STICKY);
 
         //ignore overloaded method
         if (stickyInvoker != null && !invokers.contains(stickyInvoker)) {
@@ -244,14 +243,23 @@ public abstract class AbstractClusterInvoker<T> implements Invoker<T> {
         checkWhetherDestroyed();
 
         // binding attachments into invocation.
+        // 1. 绑定attachments，Dubbo中，可以通过RpcContext上的setAttachment和getAttachment在服务消费方和提供方之间进行参数的隐式传递，
+        // 所以这段代码中会去绑定attachments
         Map<String, String> contextAttachments = RpcContext.getContext().getAttachments();
         if (contextAttachments != null && contextAttachments.size() != 0) {
             ((RpcInvocation) invocation).addAttachments(contextAttachments);
         }
 
+        // 2. 通过list获得invoker列表，这个列表基本可以猜测到是从directory里面获得的、但是这里面还实现了服务路由的逻辑，
+        // 简单来说就是先拿到invoker列表，然后通过router进行服务路由，筛选出符合路由规则的服务提供者
         List<Invoker<T>> invokers = list(invocation);
+
+        // 3. initLoadBalance 初始化负载均衡机制
+        // 会从url中获得当前的负载均衡算法，然后使用spi机制来获得负载 均衡的扩展点。
         LoadBalance loadbalance = initLoadBalance(invokers, invocation);
         RpcUtils.attachInvocationIdIfAsync(getUrl(), invocation);
+
+        // 4. 执行doInvoke
         return doInvoke(invocation, invokers, loadbalance);
     }
 

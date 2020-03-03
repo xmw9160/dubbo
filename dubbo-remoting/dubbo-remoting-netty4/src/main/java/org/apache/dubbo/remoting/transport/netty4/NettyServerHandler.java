@@ -39,11 +39,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @io.netty.channel.ChannelHandler.Sharable
 public class NettyServerHandler extends ChannelDuplexHandler {
     private static final Logger logger = LoggerFactory.getLogger(NettyServerHandler.class);
+
     /**
      * the cache for alive worker channel.
      * <ip:port, dubbo channel>
      */
-    private final Map<String, Channel> channels = new ConcurrentHashMap<String, Channel>();
+    private final Map<String, Channel> channels = new ConcurrentHashMap<>();
 
     private final URL url;
 
@@ -92,9 +93,20 @@ public class NettyServerHandler extends ChannelDuplexHandler {
         }
     }
 
+    /**
+     * 通过handler.received来处理msg
+     */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        // handler->MultiMessageHandler->HeartbeatHandler->AllChannelHandler->DecodeHandler- >HeaderExchangeHandler->
+        //       最后进入这个方法->DubboProtocol$requestHandler(receive)
+        // MultiMessageHandler: 复合消息处理
+        // HeartbeatHandler:心跳消息处理，接收心跳并发送心跳响应
+        // AllChannelHandler:业务线程转化处理器，把接收到的消息封装成ChannelEventRunnable可执行任务给线程池处理
+        // DecodeHandler:业务解码处理器
+
         NettyChannel channel = NettyChannel.getOrAddChannel(ctx.channel(), url, handler);
+        // HeaderExchangeHandler.received
         handler.received(channel, msg);
     }
 

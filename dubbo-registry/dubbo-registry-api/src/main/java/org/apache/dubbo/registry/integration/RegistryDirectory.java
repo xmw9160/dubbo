@@ -119,6 +119,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
     private volatile List<Configurator> configurators; // The initial value is null and the midway may be assigned to null, please use the local variable reference
 
     // Map<url, Invoker> cache service url to invoker mapping.
+    // 保存了服务方地址对应的invoke信息
     private volatile Map<String, Invoker<T>> urlInvokerMap; // The initial value is null and the midway may be assigned to null, please use the local variable reference
     private volatile List<Invoker<T>> invokers;
 
@@ -320,7 +321,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                 return;
             }
 
-            //XXX 根据provider url，生成新的invoker
+            //XXX 根据provider url，生成新的invoker[初始化Invoker]
             Map<String, Invoker<T>> newUrlInvokerMap = toInvokers(invokerUrls);// Translate url list to Invoker map
 
             /**
@@ -415,6 +416,9 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
 
     /**
      * XXX 关心invoker是什么时候初始化的就行
+     * 这个invoker是动态的，基于注册中心的变化而变化的。
+     * 它的初始化过程的链路是 RegistryDirectory.notify->refreshInvoker->toInvokers
+     *
      * Turn urls into invokers, and if url has been refer, will not re-reference.
      *
      * @param urls
@@ -425,6 +429,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
         if (urls == null || urls.isEmpty()) {
             return newUrlInvokerMap;
         }
+
         Set<String> keys = new HashSet<>();
         String queryProtocols = this.queryMap.get(PROTOCOL_KEY);
         for (URL providerUrl : urls) {
@@ -442,9 +447,11 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                     continue;
                 }
             }
+
             if (EMPTY_PROTOCOL.equals(providerUrl.getProtocol())) {
                 continue;
             }
+
             if (!ExtensionLoader.getExtensionLoader(Protocol.class).hasExtension(providerUrl.getProtocol())) {
                 logger.error(new IllegalStateException("Unsupported protocol " + providerUrl.getProtocol() +
                         " in notified url: " + providerUrl + " from registry " + getUrl().getAddress() +
@@ -458,6 +465,7 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
             if (keys.contains(key)) { // Repeated url
                 continue;
             }
+
             keys.add(key);
             // Cache key is url that does not merge with consumer side parameters, regardless of how the consumer combines parameters, if the server url changes, then refer again
             Map<String, Invoker<T>> localUrlInvokerMap = this.urlInvokerMap; // local reference
@@ -471,9 +479,10 @@ public class RegistryDirectory<T> extends AbstractDirectory<T> implements Notify
                         enabled = url.getParameter(ENABLED_KEY, true);
                     }
                     if (enabled) {
-                        //XXX 客户端初始化Invoker
+                        //XXX 客户端初始化Invoker, 基于protocol.refer来构建的invoker，并且使用InvokerDelegate进行了委托, 最终返回的是一个DubboInvoker对象
                         // 注意包装顺序不一定
-                        // ProtocolListenerWrapper(ProtocolFilterWrapper(QosProtocolWrapper(AbstractProtocol.refer() -> DubboProtocol.protocolBindingRefer)
+                        // ProtocolListenerWrapper(ProtocolFilterWrapper(QosProtocolWrapper(AbstractProtocol.refer() -> DubboProtocol.protocolBindingRefer初始化一个DubboInvoker)
+                        // ProtocolFilterWrapper->这个是一个invoker的过滤链路, ListenerInvokerWrapper-> 这里面暂时没做任何的实现
                         invoker = new InvokerDelegate<>(protocol.refer(serviceType, url), url, providerUrl);
                     }
                 } catch (Throwable t) {
