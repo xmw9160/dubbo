@@ -198,7 +198,7 @@ public class RegistryProtocol implements Protocol {
         // 这里是获得服务提供者的 url, dubbo://ip:port...
         URL providerUrl = getProviderUrl(originInvoker);
 
-        // 订阅 override 数据。在 admin 控制台可以针对服务进行治理，比如修改权重，修改路由机制等，
+        //XXX [服务治理]订阅 override 数据。在 admin 控制台可以针对服务进行治理，比如修改权重，修改路由机制等，
         // 当注册中心有此服务的覆盖配置注册进来时，推送消息给提供者，重新暴露服务
         // Subscribe the override data
         // FIXME When the provider subscribes, it will affect the scene : a certain JVM exposes the service and call
@@ -231,7 +231,7 @@ public class RegistryProtocol implements Protocol {
             register(registryUrl, registeredProviderUrl);
         }
 
-        // 设置注册中心的订阅
+        //[服务治理] 设置注册中心的订阅
         // Deprecated! Subscribe to override rules in 2.6.x or before.
         registry.subscribe(overrideSubscribeUrl, overrideSubscribeListener);
 
